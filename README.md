@@ -1,227 +1,112 @@
-# Local Installation Guide for Apache Airflow with PostgreSQL
-
-This guide provides a concise step-by-step process to install and set up Apache Airflow with PostgreSQL on your local machine without using Docker.
-
-## Prerequisites
-
-- **Operating System:** Linux (Ubuntu/Debian) or macOS
-- **Python:** Version 3.11.x
-- **PostgreSQL:** Version 13 or higher
-- **Tools:** `pip`, `virtualenv`
+Below is a step-by-step guide on how to run your application by cloning the Git repository and using Docker (with Docker Compose).
 
 ---
 
-## 1. Install Python 3.11
+## 1. Install prerequisites
 
-### Ubuntu/Debian
+Make sure you have the following tools installed locally:
 
+- **Git** (to clone the repository)
+- **Docker** and **Docker Compose** (to build and run the containers)
+
+You can verify that everything is installed by running:
 ```bash
-sudo apt update
-sudo apt install -y software-properties-common
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt update
-sudo apt install -y python3.11 python3.11-venv python3.11-dev
-python3.11 --version
-```
-
-### macOS (Using Homebrew)
-
-```bash
-brew install python@3.11
-brew link --overwrite python@3.11
-python3.11 --version
+git --version
+docker --version
+docker-compose --version
 ```
 
 ---
 
-## 2. Set Up Virtual Environment
+## 2. Clone the repository
+
+Clone your repository using the correct URL (example below is just a placeholder; replace it with your actual repo URL):
 
 ```bash
-mkdir ~/airflow_project
-cd ~/airflow_project
-python3.11 -m venv venv
-source venv/bin/activate
+git clone https://github.com/<username>/<repository-name>.git
 ```
+
+After cloning, you will have a folder named `<repository-name>`.
 
 ---
 
-## 3. Install PostgreSQL
-
-### Ubuntu/Debian
+## 3. Navigate to the project folder
 
 ```bash
-sudo apt install -y postgresql postgresql-contrib
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+cd <repository-name>
 ```
 
-### macOS (Using Homebrew)
-
-```bash
-brew install postgresql@13
-brew services start postgresql@13
-```
+Ensure that this directory contains the `docker-compose.yml` file (or the relevant Docker files).
 
 ---
 
-## 4. Configure PostgreSQL
+## 4. Build and run containers
 
-1. **Switch to PostgreSQL User:**
+```bash
+# 1) (Optional) Build images. This is sometimes needed if images 
+#    are not already built or if you want a fresh rebuild:
+docker-compose build --no-cache
 
-    ```bash
-    sudo -i -u postgres
-    ```
+# 2) Launch all services in detached mode:
+docker-compose up -d
+```
 
-2. **Create User and Database:**
-
-    ```bash
-    psql
-    ```
-
-    ```sql
-    CREATE USER etl_user WITH PASSWORD '1234';
-    CREATE DATABASE etl_db OWNER etl_user;
-    GRANT ALL PRIVILEGES ON DATABASE etl_db TO etl_user;
-    \q
-    exit
-    ```
+- The `--no-cache` option forces Docker to rebuild images without using cached layers.  
+- The `-d` (detached mode) runs the containers in the background.  
+- If you prefer to see the logs in real time, omit the `-d` flag (`docker-compose up`).
 
 ---
 
-## 5. Install Apache Airflow
+## 5. Check running containers
 
-### Set Environment Variables
-
-Create a `.env` file in your project directory:
+Use the following command to see the status of your services:
 
 ```bash
-touch .env
+docker-compose ps
 ```
 
-Add the following to `.env`:
-
-```env
-AIRFLOW_HOME=~/airflow_project/airflow
-AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://etl_user:1234@localhost:5432/etl_db
-AIRFLOW__CORE__EXECUTOR=LocalExecutor
-AIRFLOW__CORE__FERNET_KEY=your_generated_fernet_key_here
-AIRFLOW__CORE__LOAD_EXAMPLES=False
-```
-
-### Generate `FERNET_KEY`
-
-```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-Copy the generated key and replace `your_generated_fernet_key_here` in the `.env` file.
-
-### Install Airflow
-
-```bash
-export AIRFLOW_VERSION=2.10.4
-export PYTHON_VERSION=3.11
-export CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
-
-pip install "apache-airflow==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT_URL}"
-```
-
-### Install Additional Dependencies
-
-Create a `requirements.txt` file if needed:
-
-```txt
-psycopg2-binary
-pandas
-sqlalchemy
-# Add other dependencies here
-```
-
-Install them:
-
-```bash
-pip install -r requirements.txt
-```
+If they are all running successfully, you should see a status of `Up`.
 
 ---
 
-## 6. Initialize Airflow Database
+## 6. Inspect logs (if needed)
+
+If something goes wrong or you want to see the container output, you can check logs for a specific service:
 
 ```bash
-airflow db init
+docker-compose logs <service-name>
 ```
+
+Where `<service-name>` corresponds to one of the services defined in your `docker-compose.yml` (for example, `airflow-webserver`, `postgres`, etc.).
 
 ---
 
-## 7. Create Airflow User
+## 7. Access the application
+
+If your application provides a web interface, you can likely access it at `http://localhost:XXXX`, where `XXXX` is the port exposed in `docker-compose.yml`.
+
+- For example, if you are running Airflow, you might access it at `http://localhost:8080` (if your `docker-compose.yml` maps port 8080).
+- Adjust the port based on what you have in your Compose file.
+
+---
+
+## 8. Stop containers
+
+When you're done, you can stop and remove containers (and networks) by running:
 
 ```bash
-airflow users create \
-    --username admin \
-    --firstname Admin \
-    --lastname User \
-    --role Admin \
-    --email admin@example.com \
-    --password admin_password
+docker-compose down
 ```
 
----
-
-## 8. Launch Airflow Services
-
-### Start Scheduler
-
-Open a new terminal, activate the virtual environment, and run:
-
-```bash
-source ~/airflow_project/venv/bin/activate
-airflow scheduler
-```
-
-### Start Webserver
-
-In another terminal, activate the virtual environment, and run:
-
-```bash
-source ~/airflow_project/venv/bin/activate
-airflow webserver --port 8080
-```
+This will remove the containers but preserve any volumes (if declared in the Compose file). Data stored in volumes remains on your local disk.
 
 ---
 
-## 9. Access Airflow Web Interface
+### Summary
 
-1. Open your web browser.
-2. Navigate to [http://localhost:8080](http://localhost:8080).
-3. Log in with:
-    - **Username:** `admin`
-    - **Password:** `admin_password`
-
----
-
-## 10. Troubleshooting
-
-- **Web Interface Not Accessible:**
-  - Ensure both Scheduler and Webserver are running.
-  - Check firewall settings blocking port `8080`.
-  - Verify Airflow logs for errors:
-    ```bash
-    tail -f ~/airflow_project/airflow/logs/webserver/latest/airflow-webserver.log
-    ```
-
-- **Database Connection Issues:**
-  - Confirm PostgreSQL is running.
-  - Verify connection string in `.env`.
-  - Test connection using `psql`:
-    ```bash
-    psql postgresql://etl_user:1234@localhost:5432/etl_db -c "\l"
-    ```
-
-- **DAGs Not Showing or Broken:**
-  - Check DAG file syntax.
-  - Review Airflow logs for DAG-related errors.
-    ```bash
-    tail -f ~/airflow_project/airflow/logs/scheduler/latest/airflow-scheduler.log
-    ```
-
----
+1. **Clone** the repository (using `git clone`).
+2. **Navigate** into the project folder.
+3. **Build** Docker images if necessary (`docker-compose build`).
+4. **Start** the containers (`docker-compose up -d`).
+5. Open your **application** in a browser at the configured port.
+6. **Stop** containers using `docker-compose down` when you are finished.
